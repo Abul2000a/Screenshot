@@ -51,6 +51,10 @@
 #ifndef SCREENSHOT_H
 #define SCREENSHOT_H
 
+#include <QObject>
+#include <QtConcurrent>
+#include <QDir>
+#include <QFuture>
 #include <QPixmap>
 #include <QWidget>
 
@@ -63,6 +67,7 @@ class QLabel;
 class QPushButton;
 class QSpinBox;
 class QVBoxLayout;
+class QComboBox;
 QT_END_NAMESPACE
 
 //! [0]
@@ -72,7 +77,6 @@ class Screenshot : public QWidget
 
 public:
     Screenshot();
-
 protected:
     void resizeEvent(QResizeEvent *event) override;
 
@@ -81,12 +85,15 @@ private slots:
     void saveScreenshot();
     void shootScreen();
     void updateCheckBox();
+    void checkFinished();
+    QPixmap scaleScreenshot(QPixmap);
 
 private:
     void updateScreenshotLabel();
-
+    QFuture<QPixmap> future;
+    QString fileName;
     QPixmap originalPixmap;
-
+    QComboBox * box;
     QLabel *screenshotLabel;
     QSpinBox *delaySpinBox;
     QCheckBox *hideThisWindowCheckBox;

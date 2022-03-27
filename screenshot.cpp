@@ -49,7 +49,6 @@
 ****************************************************************************/
 
 #include <QtWidgets>
-
 #include "screenshot.h"
 
 //! [0]
@@ -58,10 +57,8 @@ Screenshot::Screenshot()
 {
     screenshotLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     screenshotLabel->setAlignment(Qt::AlignCenter);
-
     const QRect screenGeometry = screen()->geometry();
     screenshotLabel->setMinimumSize(screenGeometry.width() / 8, screenGeometry.height() / 8);
-
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     mainLayout->addWidget(screenshotLabel);
 
@@ -69,20 +66,23 @@ Screenshot::Screenshot()
     delaySpinBox = new QSpinBox(optionsGroupBox);
     delaySpinBox->setSuffix(tr(" s"));
     delaySpinBox->setMaximum(60);
-
     connect(delaySpinBox, &QSpinBox::valueChanged,
             this, &Screenshot::updateCheckBox);
 
     hideThisWindowCheckBox = new QCheckBox(tr("Hide This Window"), optionsGroupBox);
-
     QGridLayout *optionsGroupBoxLayout = new QGridLayout(optionsGroupBox);
     optionsGroupBoxLayout->addWidget(new QLabel(tr("Screenshot Delay:"), this), 0, 0);
     optionsGroupBoxLayout->addWidget(delaySpinBox, 0, 1);
     optionsGroupBoxLayout->addWidget(hideThisWindowCheckBox, 1, 0, 1, 2);
 
     mainLayout->addWidget(optionsGroupBox);
-
+    box = new QComboBox;
+    box->addItem("Choose Resolution");
+    box->addItem("2");
+    box->addItem("4");
+    box->addItem("8");
     QHBoxLayout *buttonsLayout = new QHBoxLayout;
+    buttonsLayout->addWidget(box);
     newScreenshotButton = new QPushButton(tr("New Screenshot"), this);
     connect(newScreenshotButton, &QPushButton::clicked, this, &Screenshot::newScreenshot);
     buttonsLayout->addWidget(newScreenshotButton);
@@ -102,6 +102,8 @@ Screenshot::Screenshot()
     setWindowTitle(tr("Screenshot"));
     resize(300, 200);
 }
+
+
 //! [0]
 
 //! [1]
@@ -133,7 +135,6 @@ void Screenshot::saveScreenshot()
     if (initialPath.isEmpty())
         initialPath = QDir::currentPath();
     initialPath += tr("/untitled.") + format;
-
     QFileDialog fileDialog(this, tr("Save As"), initialPath);
     fileDialog.setAcceptMode(QFileDialog::AcceptSave);
     fileDialog.setFileMode(QFileDialog::AnyFile);
@@ -147,15 +148,23 @@ void Screenshot::saveScreenshot()
     fileDialog.setDefaultSuffix(format);
     if (fileDialog.exec() != QDialog::Accepted)
         return;
-    const QString fileName = fileDialog.selectedFiles().first();
-    if (!originalPixmap.save(fileName)) {
-        QMessageBox::warning(this, tr("Save Error"), tr("The image could not be saved to \"%1\".")
-                             .arg(QDir::toNativeSeparators(fileName)));
-    }
+    fileName = fileDialog.selectedFiles().first();
+
+    future = QtConcurrent::run(&Screenshot::scaleScreenshot,this,originalPixmap);
+    QFutureWatcher<QPixmap>* obj = new QFutureWatcher<QPixmap>;
+    obj->connect(obj,&QFutureWatcher<QPixmap>::finished,this,&Screenshot::checkFinished);
+    obj->setFuture(future);
 }
 //! [3]
 
 //! [4]
+//!
+ QPixmap Screenshot::scaleScreenshot(QPixmap  pixmap){
+     int index = box->currentText().toInt();
+     index = 2;
+     pixmap = pixmap.scaled(pixmap.width()/index,pixmap.height()/index,Qt::IgnoreAspectRatio);
+     return pixmap;
+ }
 void Screenshot::shootScreen()
 {
     QScreen *screen = QGuiApplication::primaryScreen();
@@ -166,8 +175,7 @@ void Screenshot::shootScreen()
 
     if (delaySpinBox->value() != 0)
         QApplication::beep();
-
-    originalPixmap = screen->grabWindow(0);
+    originalPixmap = screen->grabWindow();
     updateScreenshotLabel();
 
     newScreenshotButton->setDisabled(false);
@@ -195,5 +203,13 @@ void Screenshot::updateScreenshotLabel()
     screenshotLabel->setPixmap(originalPixmap.scaled(screenshotLabel->size(),
                                                      Qt::KeepAspectRatio,
                                                      Qt::SmoothTransformation));
+}
+
+void Screenshot::checkFinished(){
+QPixmap result = future.result();
+if (!result.save(fileName)) {
+    QMessageBox::warning(this, tr("Save Error"), tr("The image could not be saved to \"%1\".")
+                         .arg(QDir::toNativeSeparators(fileName)));
+}
 }
 //! [10]
